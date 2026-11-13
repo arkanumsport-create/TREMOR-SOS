@@ -59,8 +59,8 @@ body,
   background: linear-gradient(180deg, #0e1b1e 0%, #0b1517 100%);
   position: relative;
   overflow: hidden;
-  /* Опускаем нижний сайд-бар максимально близко к нижнему краю экрана iPhone 15 Pro */
-  padding: max(env(safe-area-inset-top, 8px), 8px) 12px 6px;
+  /* Поднимаем нижний сайд-бар на ~5% выше от нижнего скругления экрана iPhone 15 Pro, чтобы все уголки рамки были полностью видны */
+  padding: max(env(safe-area-inset-top, 10px), 10px) 14px max(calc(env(safe-area-inset-bottom, 22px) + 6px), 28px);
 }
 
 @media (min-width: 640px) {
