@@ -53,10 +53,27 @@ export default function App() {
   // Активный экран нижней навигации: 'map' | 'feed' | 'news' | 'settings'
   const [activeTab, setActiveTab] = useState('map');
 
-  // Геолокация и модальное окно первого запуска
-  const [geoEnabled, setGeoEnabled] = useState(true);
-  const [userLocation, setUserLocation] = useState(DEFAULT_SF_COORDS);
-  const [cityName, setCityName] = useState('San Francisco, CA');
+  // Геолокация и модальное окно первого запуска (сохраняем координаты и город в localStorage, чтобы не слетали при обновлении страницы)
+  const [geoEnabled, setGeoEnabled] = useState(() => {
+    return localStorage.getItem('tremor_geo_enabled') !== 'false';
+  });
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tremor_user_coords');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_SF_COORDS;
+  });
+  const [cityName, setCityName] = useState(() => {
+    return localStorage.getItem('tremor_city_name') || 'San Francisco, CA';
+  });
   const [showGeoPromptModal, setShowGeoPromptModal] = useState(() => {
     return !localStorage.getItem('tremor_geo_prompted');
   });
@@ -105,30 +122,45 @@ export default function App() {
     localStorage.setItem('tremor_radius_km', String(clamped));
   };
 
-  // Запрос реальной GPS-геопозиции пользователя
-  const handleRequestGps = useCallback(async () => {
-    setLocatingGps(true);
+  // Запрос реальной GPS-геопозиции пользователя с сохранением в localStorage
+  const handleRequestGps = useCallback(async (silent = false) => {
+    const isSilent = silent === true;
+    if (!isSilent) setLocatingGps(true);
     try {
       const coords = await getUserLocation();
       setUserLocation(coords);
       setGeoEnabled(true);
+      localStorage.setItem('tremor_geo_enabled', 'true');
+      localStorage.setItem('tremor_user_coords', JSON.stringify(coords));
       localStorage.setItem('tremor_geo_prompted', 'true');
       setShowGeoPromptModal(false);
-      triggerHaptic('selection');
+      if (!isSilent) triggerHaptic('selection');
 
       const place = await reverseGeocodeCity(coords.lat, coords.lng);
-      setCityName(place);
+      if (place) {
+        setCityName(place);
+        localStorage.setItem('tremor_city_name', place);
+      }
     } catch {
-      // Если доступ отклонён или недоступен на ПК — оставляем рабочие координаты San Francisco, CA
+      // Если доступ временно не ответил — сохраняем уже сохранённую локацию
       localStorage.setItem('tremor_geo_prompted', 'true');
       setShowGeoPromptModal(false);
     } finally {
-      setLocatingGps(false);
+      if (!isSilent) setLocatingGps(false);
     }
   }, []);
 
+  // При перезагрузке страницы подтягиваем свежие координаты в фоне, не сбрасывая сохранённый город
+  useEffect(() => {
+    if (localStorage.getItem('tremor_geo_prompted') === 'true' && geoEnabled) {
+      handleRequestGps(true);
+    }
+  }, [handleRequestGps, geoEnabled]);
+
   const handleUseDemoLocation = () => {
     localStorage.setItem('tremor_geo_prompted', 'true');
+    localStorage.setItem('tremor_user_coords', JSON.stringify(DEFAULT_SF_COORDS));
+    localStorage.setItem('tremor_city_name', 'San Francisco, CA');
     setUserLocation(DEFAULT_SF_COORDS);
     setCityName('San Francisco, CA');
     setShowGeoPromptModal(false);

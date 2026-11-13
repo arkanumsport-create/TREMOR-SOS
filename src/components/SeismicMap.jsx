@@ -6,13 +6,16 @@ import { formatRelativeTime } from '../lib/usgs';
 const RADIUS_PRESETS = [50, 100, 250, 500, 1000, 2500];
 
 /**
- * Набор международных англоязычных тайлов (п. 2 ТЗ — карта всегда на английском языке)
- * с автоматическим переключением (fallback), если один из CDN недоступен у провайдера.
+ * 4 международных англоязычных слоя карты на базе надёжного сервера Esri ArcGIS (без CORS-блокировок):
+ * 1. Dark Radar (EN) — тёмный сейсмический радар
+ * 2. Satellite (EN) — спутниковые снимки Земли + английские подписи границ и городов
+ * 3. Street Map (EN) — подробная дорожная и городская карта на английском
+ * 4. Topographic (EN) — физическая/топографическая карта рельефа и разломов
  */
 const TILE_PROVIDERS = [
   {
     id: 'esriDark',
-    name: 'Esri Dark Radar (EN)',
+    name: 'Dark Radar (EN)',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     labelsUrl:
@@ -20,26 +23,29 @@ const TILE_PROVIDERS = [
     tintClass: 'radar-tint'
   },
   {
-    id: 'cartoDark',
-    name: 'CartoDB Dark (EN)',
-    baseUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    labelsUrl: null,
-    tintClass: 'radar-tint'
+    id: 'esriSatellite',
+    name: 'Satellite (EN)',
+    baseUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    labelsUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    tintClass: ''
   },
   {
     id: 'esriStreet',
-    name: 'Esri World Map (EN)',
+    name: 'Street Map (EN)',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     labelsUrl: null,
-    tintClass: 'osm-dark-filter'
+    tintClass: ''
   },
   {
-    id: 'osm',
-    name: 'OpenStreetMap Radar',
-    baseUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    id: 'esriTopo',
+    name: 'Topographic (EN)',
+    baseUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     labelsUrl: null,
-    tintClass: 'osm-dark-filter'
+    tintClass: ''
   }
 ];
 
@@ -60,9 +66,10 @@ export default function SeismicMap({
   const userLayerRef = useRef(null);
 
   const [radiusMenuOpen, setRadiusMenuOpen] = useState(false);
+  const [layersMenuOpen, setLayersMenuOpen] = useState(false);
   const [providerIdx, setProviderIdx] = useState(0);
 
-  // Функция установки слоя тайлов с авто-фоллбэком при ошибке сети
+  // Установка выбранного слоя карты (без crossOrigin:true, чтобы браузер не блокировал тайлы по CORS)
   const applyTileProvider = (index) => {
     const map = mapInstanceRef.current;
     const tileGroup = tileGroupRef.current;
@@ -71,31 +78,19 @@ export default function SeismicMap({
     tileGroup.clearLayers();
     const provider = TILE_PROVIDERS[index % TILE_PROVIDERS.length];
 
-    let errorCount = 0;
     const baseLayer = L.tileLayer(provider.baseUrl, {
-      maxZoom: 18,
-      crossOrigin: true
+      maxZoom: 18
     });
-
-    baseLayer.on('tileerror', () => {
-      errorCount += 1;
-      // Если провайдер блокирует текущий CDN тайлов, автоматически переключаемся на следующий
-      if (errorCount === 3) {
-        setProviderIdx((prev) => (prev + 1) % TILE_PROVIDERS.length);
-      }
-    });
-
     baseLayer.addTo(tileGroup);
 
     if (provider.labelsUrl) {
       L.tileLayer(provider.labelsUrl, {
-        maxZoom: 18,
-        crossOrigin: true
+        maxZoom: 18
       }).addTo(tileGroup);
     }
   };
 
-  // Инициализация карты Leaflet + ResizeObserver для 100% отрисовки на всех экранах
+  // Инициализация карты Leaflet
   useEffect(() => {
     const container = mapContainerRef.current;
     if (!container || mapInstanceRef.current) return;
@@ -106,7 +101,7 @@ export default function SeismicMap({
 
     const map = L.map(container, {
       center: initialCenter,
-      zoom: 3,
+      zoom: 5,
       minZoom: 2,
       maxZoom: 17,
       zoomControl: false,
@@ -120,7 +115,6 @@ export default function SeismicMap({
 
     applyTileProvider(providerIdx);
 
-    // Гарантируем пересчёт размеров контейнера после рендера
     setTimeout(() => map.invalidateSize(), 100);
     setTimeout(() => map.invalidateSize(), 400);
 
@@ -136,14 +130,10 @@ export default function SeismicMap({
     };
   }, []);
 
-  // Обновление провайдера тайлов при переключении
+  // Обновление слоя при переключении
   useEffect(() => {
     applyTileProvider(providerIdx);
   }, [providerIdx]);
-
-  const handleToggleLayer = () => {
-    setProviderIdx((prev) => (prev + 1) % TILE_PROVIDERS.length);
-  };
 
   // Отрисовка маркера пользователя "You are here" и пунктирного круга радиуса
   useEffect(() => {
@@ -291,7 +281,7 @@ export default function SeismicMap({
   const handleCenterOnUser = () => {
     const map = mapInstanceRef.current;
     if (!map || !userLocation) return;
-    map.flyTo([userLocation.lat, userLocation.lng], 10, { duration: 0.8 });
+    map.flyTo([userLocation.lat, userLocation.lng], 9, { duration: 0.8 });
   };
 
   const currentProvider = TILE_PROVIDERS[providerIdx % TILE_PROVIDERS.length];
@@ -308,7 +298,10 @@ export default function SeismicMap({
         <button
           type="button"
           className="radius-dropdown-btn"
-          onClick={() => setRadiusMenuOpen((o) => !o)}
+          onClick={() => {
+            setRadiusMenuOpen((o) => !o);
+            setLayersMenuOpen(false);
+          }}
         >
           <LocateFixed size={16} className="text-mint" />
           <span className="radius-label">{t.radius}</span>
@@ -340,15 +333,39 @@ export default function SeismicMap({
         )}
       </div>
 
-      {/* ВЕРХНЯЯ ПРАВАЯ КНОПКА СЛОЁВ */}
-      <button
-        type="button"
-        className="map-layers-btn"
-        onClick={handleToggleLayer}
-        title={`Map Style: ${currentProvider.name}`}
-      >
-        <Layers size={18} />
-      </button>
+      {/* ВЕРХНЯЯ ПРАВАЯ КНОПКА СЛОЁВ С ВЫПАДАЮЩИМ СПИСКОМ КАРТ */}
+      <div className="map-top-right-wrap">
+        <button
+          type="button"
+          className="map-layers-btn"
+          onClick={() => {
+            setLayersMenuOpen((o) => !o);
+            setRadiusMenuOpen(false);
+          }}
+          title={`Map Style: ${currentProvider.name}`}
+        >
+          <Layers size={18} />
+        </button>
+
+        {layersMenuOpen && (
+          <div className="layers-dropdown-menu">
+            {TILE_PROVIDERS.map((prov, idx) => (
+              <button
+                key={prov.id}
+                type="button"
+                className={`radius-option ${providerIdx === idx ? 'active' : ''}`}
+                onClick={() => {
+                  setProviderIdx(idx);
+                  setLayersMenuOpen(false);
+                }}
+              >
+                <span>{prov.name}</span>
+                {providerIdx === idx && <span className="dot-active" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* НИЖНЯЯ ЛЕВАЯ ЛЕГЕНДА И МАСШТАБ (как в Figma) */}
       <div className="map-bottom-left">
