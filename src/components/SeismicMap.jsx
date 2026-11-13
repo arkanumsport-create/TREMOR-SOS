@@ -106,7 +106,7 @@ export default function SeismicMap({
 
     const map = L.map(container, {
       center: initialCenter,
-      zoom: 10,
+      zoom: 3,
       minZoom: 2,
       maxZoom: 17,
       zoomControl: false,
@@ -181,20 +181,12 @@ export default function SeismicMap({
     );
   }, [userLocation, alertRadiusKm, t.youAreHere]);
 
-  // Автоматическое масштабирование при смене радиуса или координат
+  // Центрирование на координатах пользователя при их обновлении
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !userLocation) return;
-    const zoomForRadius =
-      alertRadiusKm <= 50
-        ? 10
-        : alertRadiusKm <= 150
-          ? 8
-          : alertRadiusKm <= 500
-            ? 6
-            : 4;
-    map.setView([userLocation.lat, userLocation.lng], zoomForRadius, { animate: true });
-  }, [userLocation?.lat, userLocation?.lng, alertRadiusKm]);
+    map.setView([userLocation.lat, userLocation.lng], map.getZoom(), { animate: true });
+  }, [userLocation?.lat, userLocation?.lng]);
 
   // Отрисовка маркеров землетрясений
   useEffect(() => {
