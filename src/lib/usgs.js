@@ -99,6 +99,9 @@ export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) 
     }
   }
 
+  const MAX_SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
   return features
     .map((item) => {
       const coords = item.geometry?.coordinates || [0, 0, 0];
@@ -106,6 +109,7 @@ export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) 
       const lat = Number(coords[1]);
       const depthKm = Math.max(0, Math.round(Number(coords[2]) || 0));
       const mag = Number(item.properties?.mag) || 0;
+      const time = item.properties?.time || now;
       const distanceKm = userLocation
         ? calculateDistanceKm(userLocation.lat, userLocation.lng, lat, lng)
         : null;
@@ -114,7 +118,7 @@ export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) 
         id: item.id,
         mag,
         place: item.properties?.place || 'Unknown Region',
-        time: item.properties?.time || Date.now(),
+        time,
         url: item.properties?.url || 'https://earthquake.usgs.gov',
         tsunami: Boolean(item.properties?.tsunami),
         felt: item.properties?.felt || 0,
@@ -128,7 +132,14 @@ export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) 
         severity: getSeverityInfo(mag)
       };
     })
-    .filter((q) => !Number.isNaN(q.lat) && !Number.isNaN(q.lng) && q.mag > 0);
+    .filter(
+      (q) =>
+        !Number.isNaN(q.lat) &&
+        !Number.isNaN(q.lng) &&
+        q.mag > 0 &&
+        now - q.time <= MAX_SEVEN_DAYS_MS
+    )
+    .sort((a, b) => b.time - a.time);
 }
 
 /**
@@ -229,9 +240,14 @@ export function formatRelativeTime(timestamp, lang = 'en') {
     return `${diffHours} hr ago`;
   }
   const diffDays = Math.floor(diffHours / 24);
-  if (lang === 'ru') return `${diffDays} дн назад`;
-  if (lang === 'es') return `hace ${diffDays} d`;
-  return `${diffDays} d ago`;
+  const remHours = diffHours % 24;
+  if (lang === 'ru') {
+    return remHours > 0 ? `${diffDays} дн ${remHours} ч назад` : `${diffDays} дн назад`;
+  }
+  if (lang === 'es') {
+    return remHours > 0 ? `hace ${diffDays} d ${remHours} h` : `hace ${diffDays} d`;
+  }
+  return remHours > 0 ? `${diffDays} d ${remHours} hr ago` : `${diffDays} d ago`;
 }
 
 /**

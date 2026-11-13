@@ -107,6 +107,7 @@ export default function App() {
   const [selectedQuake, setSelectedQuake] = useState(null);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [feltCount, setFeltCount] = useState(0);
+  const [pushBanner, setPushBanner] = useState(null);
 
   const notifiedIdsRef = useRef(new Set());
 
@@ -259,10 +260,10 @@ export default function App() {
 
       if (isTsunamiMatch || isQuakeMatch) {
         notifiedIdsRef.current.add(q.id);
-        sendSeismicPushNotification({
-          title: t.pushTitle,
-          body: t.pushBody(q.mag.toFixed(1), q.place, q.distanceKm)
-        });
+        const title = t.pushTitle;
+        const body = t.pushBody(q.mag.toFixed(1), q.place, q.distanceKm);
+        setPushBanner({ title, body, quake: q });
+        sendSeismicPushNotification({ title, body });
       }
     });
   }, [
@@ -276,32 +277,74 @@ export default function App() {
     t
   ]);
 
-  // Крупные и разрушительные землетрясения для вкладки News (Новости и последствия)
+  // Крупные и разрушительные землетрясения для вкладки News (свежие вверху в часах и днях, максимум 7 дней)
   const impactNewsQuakes = useMemo(() => {
+    const maxSevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
     return [...activeQuakes]
-      .filter((q) => q.mag >= 4.5 || q.tsunami || q.felt > 20)
-      .sort((a, b) => b.significance - a.significance || b.mag - a.mag)
-      .slice(0, 25);
+      .filter(
+        (q) =>
+          now - q.time <= maxSevenDaysMs &&
+          (q.mag >= 4.5 || q.tsunami || q.felt > 20)
+      )
+      .sort((a, b) => b.time - a.time)
+      .slice(0, 35);
   }, [activeQuakes]);
 
   const handleTestPush = async () => {
-    await requestNotificationPermission();
     const sample = latestNearbyEvent || {
       mag: 4.8,
       place: 'Berkeley, CA',
       distanceKm: 12
     };
-    await sendSeismicPushNotification({
-      title: t.pushTitle,
-      body: t.pushBody(sample.mag.toFixed(1), sample.place, sample.distanceKm ?? 12)
-    });
+    const title = t.pushTitle;
+    const body = t.pushBody(
+      sample.mag.toFixed(1),
+      sample.place,
+      sample.distanceKm ?? 12
+    );
+
+    // Мгновенно показываем интерактивный пуш-баннер сверху со звуком и вибрацией + отправляем системный пуш
+    setPushBanner({ title, body, quake: sample });
     setTestPushFeedback(true);
-    setTimeout(() => setTestPushFeedback(false), 3500);
+    setTimeout(() => setTestPushFeedback(false), 4000);
+    setTimeout(() => setPushBanner((curr) => (curr?.body === body ? null : curr)), 6000);
+
+    await sendSeismicPushNotification({ title, body });
   };
 
   return (
     <div className={`figma-app-root theme-${theme}`}>
       <div className={`figma-phone-frame theme-${theme}`}>
+        {/* ВСПЛЫВАЮЩЕЕ PUSH-УВЕДОМЛЕНИЕ ВВЕРХУ ЭКРАНА */}
+        {pushBanner && (
+          <div
+            className="live-push-toast"
+            onClick={() => {
+              if (pushBanner.quake?.lat) {
+                setSelectedQuake(pushBanner.quake);
+                setActiveTab('map');
+              }
+              setPushBanner(null);
+            }}
+          >
+            <img src="./pwa-192x192.png" alt="TREMOR SOS" className="push-toast-icon" />
+            <div className="push-toast-content">
+              <strong>{pushBanner.title}</strong>
+              <p>{pushBanner.body}</p>
+            </div>
+            <button
+              type="button"
+              className="push-toast-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPushBanner(null);
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {/* ШАПКА ПРИЛОЖЕНИЯ (Обновлённая по пожеланиям: синий фон, бордовый TREMOR, живая жёлтая кардиограмма) */}
         <header className="figma-header">
           <div className="figma-header-top">

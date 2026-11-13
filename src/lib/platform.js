@@ -128,8 +128,37 @@ export async function requestNotificationPermission() {
   return false;
 }
 
+export function playAlertBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    [880, 1175].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + i * 0.14);
+      gain.gain.setValueAtTime(0.01, now + i * 0.14);
+      gain.gain.exponentialRampToValueAtTime(0.28, now + i * 0.14 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.14);
+      osc.stop(now + i * 0.14 + 0.13);
+    });
+
+    setTimeout(() => ctx.close().catch(() => {}), 600);
+  } catch {
+    // ignore audio restriction
+  }
+}
+
 export async function sendSeismicPushNotification({ title, body }) {
   triggerHaptic('danger');
+  playAlertBeep();
+
   try {
     if (Capacitor.isNativePlatform()) {
       await LocalNotifications.schedule({
@@ -138,7 +167,7 @@ export async function sendSeismicPushNotification({ title, body }) {
             id: Math.floor(Math.random() * 100000),
             title,
             body,
-            schedule: { at: new Date(Date.now() + 300) }
+            schedule: { at: new Date(Date.now() + 200) }
           }
         ]
       });
@@ -146,21 +175,33 @@ export async function sendSeismicPushNotification({ title, body }) {
     }
 
     if ('Notification' in window) {
-      if (Notification.permission !== 'granted') {
+      if (Notification.permission === 'default') {
         await Notification.requestPermission();
       }
       if (Notification.permission === 'granted') {
-        new Notification(title, {
+        const options = {
           body,
           icon: './pwa-192x192.png',
           badge: './pwa-192x192.png',
-          vibrate: [200, 100, 200]
-        });
+          vibrate: [200, 100, 200],
+          tag: 'tremor-sos-push-' + Date.now()
+        };
+
+        // В PWA и мобильных браузерах требуется вызов через ServiceWorkerRegistration
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg && typeof reg.showNotification === 'function') {
+            await reg.showNotification(title, options);
+            return true;
+          }
+        }
+
+        new Notification(title, options);
         return true;
       }
     }
   } catch {
-    // Fallback to in-app alert banner
+    // Fallback to in-app push banner
   }
   return false;
 }
