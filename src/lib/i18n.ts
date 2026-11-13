@@ -122,7 +122,7 @@ export const TRANSLATIONS = {
     ]
   },
   es: {
-    live: 'EN VIVO',
+    live: 'LIVE',
     subtitle: 'Monitoreo sísmico en tiempo real',
     updatedJustNow: 'Actualizado ahora mismo',
     updatedAt: 'Actualizado',
@@ -136,8 +136,8 @@ export const TRANSLATIONS = {
     viewDetails: 'Ver detalles',
     kmAway: 'km de ti',
     epicenterDistance: (km: number) => `El epicentro está a ${km} km de ti`,
-    monitoringRadius: (km: number) => `Monitoreando tu radio de ${km} km`,
-    liveUsgsData: 'USGS en vivo (Fuertes M4.5+)',
+    monitoringRadius: (km: number) => `Monitoreando radio de ${km} km`,
+    liveUsgsData: 'USGS M4.5+ (Live)',
     previewData: 'Demo cercano',
     // Map layers menu
     layerDarkRadar: 'Radar Oscuro (EN)',
@@ -255,8 +255,8 @@ export const TRANSLATIONS = {
     viewDetails: 'Подробнее',
     kmAway: 'км от вас',
     epicenterDistance: (km: number) => `Эпицентр в ${km} км от вас`,
-    monitoringRadius: (km: number) => `Мониторинг вашего радиуса ${km} км`,
-    liveUsgsData: 'Реальные сильные (USGS M4.5+)',
+    monitoringRadius: (km: number) => `Радиус мониторинга: ${km} км`,
+    liveUsgsData: 'USGS M4.5+ (Live)',
     previewData: 'Демо рядом',
     // Map layers menu
     layerDarkRadar: 'Тёмный радар (EN)',

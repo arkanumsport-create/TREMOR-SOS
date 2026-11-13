@@ -161,10 +161,10 @@ export default function SeismicMap({
     const userIcon = L.divIcon({
       className: 'custom-user-marker',
       html: `
-        <div class="figma-user-pin">
+        <div class="figma-user-pin notranslate" translate="no">
           <div class="figma-user-halo"></div>
           <div class="figma-user-core"></div>
-          <div class="figma-user-label">${t.youAreHere}</div>
+          <div class="figma-user-label notranslate" translate="no">You are here</div>
         </div>
       `,
       iconSize: [110, 56],

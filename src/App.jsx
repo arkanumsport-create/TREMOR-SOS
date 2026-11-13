@@ -110,10 +110,14 @@ export default function App() {
 
   const notifiedIdsRef = useRef(new Set());
 
-  // Инициализация Telegram Mini App
+  // Инициализация Telegram Mini App и синхронизация атрибута языка (чтобы автопереводчик браузера не ломал интерфейс)
   useEffect(() => {
     initTelegramMiniApp();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   // Сохранение языка, темы и радиуса
   const handleSetLang = (newLang) => {
@@ -323,16 +327,17 @@ export default function App() {
                   />
                 </svg>
               </div>
-              <h1 className="figma-title">
+              <h1 className="figma-title notranslate" translate="no">
                 <span className="title-burgundy">TREMOR</span>{' '}
                 <span className="title-mint">SOS</span>
               </h1>
             </div>
 
-            <div className="figma-header-actions">
+            <div className="figma-header-actions notranslate" translate="no">
               <button
                 type="button"
-                className="sos-mini-pill"
+                className="sos-mini-pill notranslate"
+                translate="no"
                 onClick={() => {
                   triggerHaptic('danger');
                   setIsSosOpen(true);
@@ -341,16 +346,20 @@ export default function App() {
               >
                 SOS
               </button>
-              <div className="figma-live-pill">
+              <div className="figma-live-pill notranslate" translate="no">
                 <span className="live-dot" />
-                <span>{t.live}</span>
+                <span>LIVE</span>
               </div>
             </div>
           </div>
 
-          <div className="figma-location-row" onClick={handleRequestGps}>
+          <div
+            className="figma-location-row notranslate"
+            translate="no"
+            onClick={() => handleRequestGps(false)}
+          >
             <MapPin size={21} strokeWidth={2.6} className="locator-pin-icon" />
-            <span className="location-city-text">
+            <span className="location-city-text notranslate" translate="no">
               {locatingGps ? t.locating : geoEnabled ? cityName : t.locationUnknown}
             </span>
           </div>
