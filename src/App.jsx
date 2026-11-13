@@ -74,8 +74,8 @@ export default function App() {
   const [earthquakeAlerts, setEarthquakeAlerts] = useState(true);
   const [testPushFeedback, setTestPushFeedback] = useState(false);
 
-  // Режим данных: 'live' (реальные сильные землетрясения USGS M4.5+) или 'preview' (демо вокруг пользователя как на Figma)
-  const [dataSourceMode, setDataSourceMode] = useState('live');
+  // Режим данных: 'preview' (объединяет точки рядом с пользователем как на Figma + реальные сильные землетрясения USGS M4.5+) или 'live' (только мировые USGS)
+  const [dataSourceMode, setDataSourceMode] = useState('preview');
   const [feedFilter, setFeedFilter] = useState('strong'); // 'strong' | 'significant' | 'day25'
   const [sortBy, setSortBy] = useState('time'); // 'time' | 'mag' | 'distance'
 

@@ -210,8 +210,9 @@ body,
 /* КАРТА LEAFLET В СТИЛЕ FIGMA */
 .figma-map-card {
   position: relative;
-  flex: 1;
-  min-height: 260px;
+  flex: 1 1 auto;
+  min-height: 310px;
+  height: 100%;
   border-radius: 20px;
   overflow: hidden;
   border: 1px solid rgba(94, 234, 212, 0.18);
@@ -220,14 +221,22 @@ body,
 }
 
 .figma-map-canvas {
-  width: 100%;
-  height: 100%;
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
   background: #0c181b;
 }
 
 /* Изумрудно-бирюзовый оттенок тайлов как на макете Figma */
 .figma-map-canvas.radar-tint .leaflet-tile-pane {
-  filter: sepia(28%) hue-rotate(125deg) saturate(155%) brightness(0.95) contrast(1.08);
+  filter: sepia(28%) hue-rotate(125deg) saturate(155%) brightness(1.05) contrast(1.08);
+}
+
+/* Тёмный фильтр для стандартных OSM/Esri Street тайлов */
+.figma-map-canvas.osm-dark-filter .leaflet-tile-pane {
+  filter: invert(92%) hue-rotate(155deg) saturate(130%) brightness(0.88) contrast(1.1);
 }
 
 /* Верхний левый дропдаун Radius 50 km */

@@ -5,17 +5,43 @@ import { formatRelativeTime } from '../lib/usgs';
 
 const RADIUS_PRESETS = [50, 100, 250, 500, 1000, 2500];
 
-// Строго англоязычные тайлы согласно п. 2 ТЗ (международный стандарт картографии)
-const MAP_TILES = {
-  radar: {
-    name: 'Dark Radar (EN)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+/**
+ * Набор международных англоязычных тайлов (п. 2 ТЗ — карта всегда на английском языке)
+ * с автоматическим переключением (fallback), если один из CDN недоступен у провайдера.
+ */
+const TILE_PROVIDERS = [
+  {
+    id: 'esriDark',
+    name: 'Esri Dark Radar (EN)',
+    baseUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    labelsUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    tintClass: 'radar-tint'
   },
-  voyager: {
-    name: 'Tactical Street (EN)',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+  {
+    id: 'cartoDark',
+    name: 'CartoDB Dark (EN)',
+    baseUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    labelsUrl: null,
+    tintClass: 'radar-tint'
+  },
+  {
+    id: 'esriStreet',
+    name: 'Esri World Map (EN)',
+    baseUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    labelsUrl: null,
+    tintClass: 'osm-dark-filter'
+  },
+  {
+    id: 'osm',
+    name: 'OpenStreetMap Radar',
+    baseUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    labelsUrl: null,
+    tintClass: 'osm-dark-filter'
   }
-};
+];
 
 export default function SeismicMap({
   quakes,
@@ -29,22 +55,56 @@ export default function SeismicMap({
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const tileLayerRef = useRef(null);
+  const tileGroupRef = useRef(null);
   const markersLayerRef = useRef(null);
   const userLayerRef = useRef(null);
 
   const [radiusMenuOpen, setRadiusMenuOpen] = useState(false);
-  const [tileStyle, setTileStyle] = useState('radar');
+  const [providerIdx, setProviderIdx] = useState(0);
 
-  // Инициализация карты Leaflet
+  // Функция установки слоя тайлов с авто-фоллбэком при ошибке сети
+  const applyTileProvider = (index) => {
+    const map = mapInstanceRef.current;
+    const tileGroup = tileGroupRef.current;
+    if (!map || !tileGroup) return;
+
+    tileGroup.clearLayers();
+    const provider = TILE_PROVIDERS[index % TILE_PROVIDERS.length];
+
+    let errorCount = 0;
+    const baseLayer = L.tileLayer(provider.baseUrl, {
+      maxZoom: 18,
+      crossOrigin: true
+    });
+
+    baseLayer.on('tileerror', () => {
+      errorCount += 1;
+      // Если провайдер блокирует текущий CDN тайлов, автоматически переключаемся на следующий
+      if (errorCount === 3) {
+        setProviderIdx((prev) => (prev + 1) % TILE_PROVIDERS.length);
+      }
+    });
+
+    baseLayer.addTo(tileGroup);
+
+    if (provider.labelsUrl) {
+      L.tileLayer(provider.labelsUrl, {
+        maxZoom: 18,
+        crossOrigin: true
+      }).addTo(tileGroup);
+    }
+  };
+
+  // Инициализация карты Leaflet + ResizeObserver для 100% отрисовки на всех экранах
   useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+    const container = mapContainerRef.current;
+    if (!container || mapInstanceRef.current) return;
 
     const initialCenter = userLocation
       ? [userLocation.lat, userLocation.lng]
-      : [37.79, -122.35]; // San Francisco Bay Area по умолчанию
+      : [37.79, -122.35];
 
-    const map = L.map(mapContainerRef.current, {
+    const map = L.map(container, {
       center: initialCenter,
       zoom: 10,
       minZoom: 2,
@@ -53,31 +113,39 @@ export default function SeismicMap({
       attributionControl: false
     });
 
-    tileLayerRef.current = L.tileLayer(MAP_TILES.radar.url, {
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(map);
-
-    markersLayerRef.current = L.layerGroup().addTo(map);
+    tileGroupRef.current = L.layerGroup().addTo(map);
     userLayerRef.current = L.layerGroup().addTo(map);
+    markersLayerRef.current = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
 
+    applyTileProvider(providerIdx);
+
+    // Гарантируем пересчёт размеров контейнера после рендера
+    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 400);
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    resizeObserver.observe(container);
+
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
 
-  // Переключение стиля карты (всегда на английском языке)
+  // Обновление провайдера тайлов при переключении
+  useEffect(() => {
+    applyTileProvider(providerIdx);
+  }, [providerIdx]);
+
   const handleToggleLayer = () => {
-    const next = tileStyle === 'radar' ? 'voyager' : 'radar';
-    setTileStyle(next);
-    if (tileLayerRef.current) {
-      tileLayerRef.current.setUrl(MAP_TILES[next].url);
-    }
+    setProviderIdx((prev) => (prev + 1) % TILE_PROVIDERS.length);
   };
 
-  // Отрисовка маркера пользователя "You are here" и пунктирного радиуса
+  // Отрисовка маркера пользователя "You are here" и пунктирного круга радиуса
   useEffect(() => {
     const map = mapInstanceRef.current;
     const userLayer = userLayerRef.current;
@@ -86,7 +154,6 @@ export default function SeismicMap({
     userLayer.clearLayers();
     if (!userLocation) return;
 
-    // Пунктирный круг радиуса безопасности как в Figma
     L.circle([userLocation.lat, userLocation.lng], {
       radius: (alertRadiusKm || 50) * 1000,
       color: '#5eead4',
@@ -96,7 +163,6 @@ export default function SeismicMap({
       fillOpacity: 0.08
     }).addTo(userLayer);
 
-    // Синяя светящаяся точка с подписью "You are here"
     const userIcon = L.divIcon({
       className: 'custom-user-marker',
       html: `
@@ -115,7 +181,7 @@ export default function SeismicMap({
     );
   }, [userLocation, alertRadiusKm, t.youAreHere]);
 
-  // Центрирование карты при первом получении координат пользователя
+  // Автоматическое масштабирование при смене радиуса или координат
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !userLocation) return;
@@ -128,9 +194,9 @@ export default function SeismicMap({
             ? 6
             : 4;
     map.setView([userLocation.lat, userLocation.lng], zoomForRadius, { animate: true });
-  }, [userLocation?.lat, userLocation?.lng]);
+  }, [userLocation?.lat, userLocation?.lng, alertRadiusKm]);
 
-  // Отрисовка маркеров землетрясений (Зелёный — Minor, Оранжевый — Moderate, Красный с "!" — Severe)
+  // Отрисовка маркеров землетрясений
   useEffect(() => {
     const markersLayer = markersLayerRef.current;
     if (!markersLayer) return;
@@ -236,11 +302,13 @@ export default function SeismicMap({
     map.flyTo([userLocation.lat, userLocation.lng], 10, { duration: 0.8 });
   };
 
+  const currentProvider = TILE_PROVIDERS[providerIdx % TILE_PROVIDERS.length];
+
   return (
     <div className="figma-map-card">
       <div
         ref={mapContainerRef}
-        className={`figma-map-canvas ${tileStyle === 'radar' ? 'radar-tint' : ''}`}
+        className={`figma-map-canvas ${currentProvider.tintClass}`}
       />
 
       {/* ВЕРХНИЙ ЛЕВЫЙ СЕЛЕКТОР РАДИУСА: Radius 50 km ⌄ */}
@@ -285,7 +353,7 @@ export default function SeismicMap({
         type="button"
         className="map-layers-btn"
         onClick={handleToggleLayer}
-        title="Switch Map Layer (English Labels)"
+        title={`Map Style: ${currentProvider.name}`}
       >
         <Layers size={18} />
       </button>
