@@ -10,32 +10,44 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['radar-icon.svg', 'app-icon-original.jpg'],
+      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'apple-touch-icon.png'],
       manifest: {
+        id: './',
         name: 'TREMOR SOS — Seismic Monitor',
         short_name: 'TREMOR SOS',
-        description: 'Cross-platform mobile seismic & tsunami monitor with real-time geolocation alerts (PWA & Telegram Mini App)',
+        description:
+          'Cross-platform mobile seismic & tsunami monitor with real-time geolocation alerts (PWA & Telegram Mini App)',
         theme_color: '#0c1719',
         background_color: '#0c1719',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: './',
+        scope: './',
         icons: [
           {
-            src: 'radar-icon.svg',
-            sizes: '192x192 512x512',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
           },
           {
-            src: 'app-icon-original.jpg',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/jpeg',
+            type: 'image/png',
             purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         globPatterns: ['**/*.{js,css,html,svg,jpg,png,woff2}'],
         runtimeCaching: [
           {

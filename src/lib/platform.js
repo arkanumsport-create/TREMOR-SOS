@@ -152,8 +152,8 @@ export async function sendSeismicPushNotification({ title, body }) {
       if (Notification.permission === 'granted') {
         new Notification(title, {
           body,
-          icon: '/radar-icon.svg',
-          badge: '/radar-icon.svg',
+          icon: './pwa-192x192.png',
+          badge: './pwa-192x192.png',
           vibrate: [200, 100, 200]
         });
         return true;
