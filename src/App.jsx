@@ -254,15 +254,33 @@ export default function App() {
   return (
     <div className="figma-app-root">
       <div className="figma-phone-frame">
-        {/* ШАПКА ПРИЛОЖЕНИЯ (1:1 по макету Figma) */}
+        {/* ШАПКА ПРИЛОЖЕНИЯ (Обновлённая по пожеланиям: синий фон, бордовый TREMOR, живая жёлтая кардиограмма) */}
         <header className="figma-header">
           <div className="figma-header-top">
             <div className="figma-brand-row">
-              <div className="figma-pulse-logo" onClick={() => setActiveTab('map')}>
-                <Activity size={20} strokeWidth={2.4} />
+              <div
+                className="figma-pulse-logo"
+                onClick={() => setActiveTab('map')}
+                title="Live Seismograph"
+              >
+                <svg
+                  className="ecg-svg"
+                  viewBox="0 0 64 32"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    className="ecg-wave-bg"
+                    d="M0 16 H14 L19 7 L25 27 L31 4 L37 28 L42 12 L46 16 H64"
+                  />
+                  <path
+                    className="ecg-wave-line"
+                    d="M0 16 H14 L19 7 L25 27 L31 4 L37 28 L42 12 L46 16 H64"
+                  />
+                </svg>
               </div>
               <h1 className="figma-title">
-                <span className="title-white">TREMOR</span>{' '}
+                <span className="title-burgundy">TREMOR</span>{' '}
                 <span className="title-mint">SOS</span>
               </h1>
             </div>
@@ -287,15 +305,15 @@ export default function App() {
           </div>
 
           <div className="figma-location-row" onClick={handleRequestGps}>
-            <MapPin size={15} className="text-mint" />
+            <MapPin size={21} strokeWidth={2.6} className="locator-pin-icon" />
             <span className="location-city-text">
               {locatingGps ? t.locating : geoEnabled ? cityName : t.locationUnknown}
             </span>
           </div>
 
           <div className="figma-status-subrow">
-            <span>{t.subtitle}</span>
-            <span className="updated-label">{t.updatedJustNow}</span>
+            <span className="status-white-bold">{t.subtitle}</span>
+            <span className="updated-label status-white-bold">{t.updatedJustNow}</span>
           </div>
         </header>
 

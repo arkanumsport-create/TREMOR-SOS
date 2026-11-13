@@ -69,12 +69,17 @@ body,
   }
 }
 
-/* ШАПКА ПРИЛОЖЕНИЯ (Figma Header) */
+/* ШАПКА ПРИЛОЖЕНИЯ (Синий фон, бордовый TREMOR, жёлтая живая кардиограмма) */
 .figma-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 60%, #172554 100%);
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.55);
   flex-shrink: 0;
 }
 
@@ -91,32 +96,75 @@ body,
 }
 
 .figma-pulse-logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(45, 212, 191, 0.14);
-  border: 1px solid rgba(52, 211, 153, 0.32);
-  color: #34d399;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1.5px solid #facc15;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 16px rgba(52, 211, 153, 0.18);
+  overflow: hidden;
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
+}
+
+.ecg-svg {
+  width: 34px;
+  height: 24px;
+  overflow: visible;
+}
+
+.ecg-wave-bg {
+  stroke: rgba(250, 204, 21, 0.25);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ecg-wave-line {
+  stroke: #fde047;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 5px #facc15);
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: ecgCardiogram 1.5s linear infinite;
+}
+
+@keyframes ecgCardiogram {
+  0% {
+    stroke-dashoffset: 90;
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -90;
+    opacity: 0.9;
+  }
 }
 
 .figma-title {
-  font-size: 1.32rem;
-  font-weight: 800;
+  font-size: 1.38rem;
+  font-weight: 900;
   letter-spacing: 0.03em;
   line-height: 1;
 }
 
-.title-white {
-  color: #ffffff;
+.title-burgundy {
+  color: #881337;
+  -webkit-text-stroke: 0.8px #fda4af;
+  text-shadow:
+    0 0 2px #ffffff,
+    0 2px 8px rgba(136, 19, 55, 0.65);
 }
 
 .title-mint {
   color: #4ade80;
+  text-shadow: 0 2px 8px rgba(74, 222, 128, 0.35);
 }
 
 .figma-header-actions {
@@ -126,12 +174,12 @@ body,
 }
 
 .sos-mini-pill {
-  background: rgba(244, 63, 94, 0.18);
-  border: 1px solid rgba(244, 63, 94, 0.5);
-  color: #fda4af;
-  font-size: 0.72rem;
+  background: rgba(136, 19, 55, 0.75);
+  border: 1px solid #fda4af;
+  color: #ffffff;
+  font-size: 0.74rem;
   font-weight: 800;
-  padding: 5px 10px;
+  padding: 5px 11px;
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.2s;
@@ -148,17 +196,17 @@ body,
   gap: 6px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(16, 185, 129, 0.18);
-  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(6, 78, 59, 0.75);
+  border: 1px solid #34d399;
   color: #6ee7b7;
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 800;
   letter-spacing: 0.05em;
 }
 
 .live-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #34d399;
   box-shadow: 0 0 8px #34d399;
@@ -173,12 +221,34 @@ body,
 .figma-location-row {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  align-self: flex-start;
+  gap: 7px;
   margin-top: 2px;
+  padding: 4px 11px 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1.5px solid #facc15;
   cursor: pointer;
-  color: #e2e8f0;
-  font-size: 0.9rem;
-  font-weight: 500;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.22);
+}
+
+.locator-pin-icon {
+  color: #facc15;
+  filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.6));
+  flex-shrink: 0;
+}
+
+.location-city-text {
+  color: #ffffff;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-shadow:
+    -1px -1px 0 #eab308,
+     1px -1px 0 #eab308,
+    -1px  1px 0 #eab308,
+     1px  1px 0 #eab308,
+     0px  2px 6px rgba(0, 0, 0, 0.65);
 }
 
 .text-mint {
@@ -189,8 +259,14 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.74rem;
-  color: #94a3b8;
+  font-size: 0.78rem;
+  margin-top: 1px;
+}
+
+.status-white-bold {
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 /* ОСНОВНАЯ ОБЛАСТЬ ЭКРАНА */
