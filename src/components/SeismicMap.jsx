@@ -5,17 +5,10 @@ import { formatRelativeTime } from '../lib/usgs';
 
 const RADIUS_PRESETS = [50, 100, 250, 500, 1000, 2500];
 
-/**
- * 4 международных англоязычных слоя карты на базе надёжного сервера Esri ArcGIS (без CORS-блокировок):
- * 1. Dark Radar (EN) — тёмный сейсмический радар
- * 2. Satellite (EN) — спутниковые снимки Земли + английские подписи границ и городов
- * 3. Street Map (EN) — подробная дорожная и городская карта на английском
- * 4. Topographic (EN) — физическая/топографическая карта рельефа и разломов
- */
 const TILE_PROVIDERS = [
   {
     id: 'esriDark',
-    name: 'Dark Radar (EN)',
+    labelKey: 'layerDarkRadar',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     labelsUrl:
@@ -24,7 +17,7 @@ const TILE_PROVIDERS = [
   },
   {
     id: 'esriSatellite',
-    name: 'Satellite (EN)',
+    labelKey: 'layerSatellite',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     labelsUrl:
@@ -33,7 +26,7 @@ const TILE_PROVIDERS = [
   },
   {
     id: 'esriStreet',
-    name: 'Street Map (EN)',
+    labelKey: 'layerStreet',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     labelsUrl: null,
@@ -41,7 +34,7 @@ const TILE_PROVIDERS = [
   },
   {
     id: 'esriTopo',
-    name: 'Topographic (EN)',
+    labelKey: 'layerTopo',
     baseUrl:
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     labelsUrl: null,
@@ -61,7 +54,8 @@ export default function SeismicMap({
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const tileGroupRef = useRef(null);
+  const baseTileLayerRef = useRef(null);
+  const labelsTileLayerRef = useRef(null);
   const markersLayerRef = useRef(null);
   const userLayerRef = useRef(null);
 
@@ -69,25 +63,37 @@ export default function SeismicMap({
   const [layersMenuOpen, setLayersMenuOpen] = useState(false);
   const [providerIdx, setProviderIdx] = useState(0);
 
-  // Установка выбранного слоя карты (без crossOrigin:true, чтобы браузер не блокировал тайлы по CORS)
+  // Прямое переключение тайлов на инстансе карты Leaflet
   const applyTileProvider = (index) => {
     const map = mapInstanceRef.current;
-    const tileGroup = tileGroupRef.current;
-    if (!map || !tileGroup) return;
+    if (!map) return;
 
-    tileGroup.clearLayers();
+    if (baseTileLayerRef.current) {
+      map.removeLayer(baseTileLayerRef.current);
+      baseTileLayerRef.current = null;
+    }
+    if (labelsTileLayerRef.current) {
+      map.removeLayer(labelsTileLayerRef.current);
+      labelsTileLayerRef.current = null;
+    }
+
     const provider = TILE_PROVIDERS[index % TILE_PROVIDERS.length];
 
     const baseLayer = L.tileLayer(provider.baseUrl, {
       maxZoom: 18
-    });
-    baseLayer.addTo(tileGroup);
+    }).addTo(map);
+    baseLayer.bringToBack();
+    baseTileLayerRef.current = baseLayer;
 
     if (provider.labelsUrl) {
-      L.tileLayer(provider.labelsUrl, {
-        maxZoom: 18
-      }).addTo(tileGroup);
+      const labelsLayer = L.tileLayer(provider.labelsUrl, {
+        maxZoom: 18,
+        pane: 'tilePane'
+      }).addTo(map);
+      labelsTileLayerRef.current = labelsLayer;
     }
+
+    setTimeout(() => map.invalidateSize(), 50);
   };
 
   // Инициализация карты Leaflet
@@ -108,7 +114,6 @@ export default function SeismicMap({
       attributionControl: false
     });
 
-    tileGroupRef.current = L.layerGroup().addTo(map);
     userLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
@@ -130,7 +135,7 @@ export default function SeismicMap({
     };
   }, []);
 
-  // Обновление слоя при переключении
+  // Обновление слоя при выборе в меню
   useEffect(() => {
     applyTileProvider(providerIdx);
   }, [providerIdx]);
@@ -287,11 +292,9 @@ export default function SeismicMap({
   const currentProvider = TILE_PROVIDERS[providerIdx % TILE_PROVIDERS.length];
 
   return (
-    <div className="figma-map-card">
-      <div
-        ref={mapContainerRef}
-        className={`figma-map-canvas ${currentProvider.tintClass}`}
-      />
+    <div className={`figma-map-card ${currentProvider.tintClass}`}>
+      {/* ВАЖНО: className на самом контейнере Leaflet не должен динамически меняться React-ом, чтобы не затирать системный класс leaflet-container */}
+      <div ref={mapContainerRef} className="figma-map-canvas" />
 
       {/* ВЕРХНИЙ ЛЕВЫЙ СЕЛЕКТОР РАДИУСА: Radius 50 km ⌄ */}
       <div className="map-top-left">
@@ -342,7 +345,7 @@ export default function SeismicMap({
             setLayersMenuOpen((o) => !o);
             setRadiusMenuOpen(false);
           }}
-          title={`Map Style: ${currentProvider.name}`}
+          title={t[currentProvider.labelKey] || currentProvider.id}
         >
           <Layers size={18} />
         </button>
@@ -359,7 +362,7 @@ export default function SeismicMap({
                   setLayersMenuOpen(false);
                 }}
               >
-                <span>{prov.name}</span>
+                <span>{t[prov.labelKey] || prov.id}</span>
                 {providerIdx === idx && <span className="dot-active" />}
               </button>
             ))}

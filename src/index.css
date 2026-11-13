@@ -307,12 +307,12 @@ body,
 }
 
 /* Изумрудно-бирюзовый оттенок тайлов как на макете Figma */
-.figma-map-canvas.radar-tint .leaflet-tile-pane {
+.figma-map-card.radar-tint .leaflet-tile-pane {
   filter: sepia(28%) hue-rotate(125deg) saturate(155%) brightness(1.05) contrast(1.08);
 }
 
 /* Тёмный фильтр для стандартных OSM/Esri Street тайлов */
-.figma-map-canvas.osm-dark-filter .leaflet-tile-pane {
+.figma-map-card.osm-dark-filter .leaflet-tile-pane {
   filter: invert(92%) hue-rotate(155deg) saturate(130%) brightness(0.88) contrast(1.1);
 }
 
@@ -847,14 +847,14 @@ body,
   text-underline-offset: 3px;
 }
 
-/* НИЖНИЙ ДОК НАВИГАЦИИ (Map / Feed / News / Settings) — синяя окантовка в тон верхней панели */
+/* НИЖНИЙ ДОК НАВИГАЦИИ (Map / Feed / News / Settings) — синяя окантовка, тёмно-фиолетовые иконки, светло-белый прозрачный бегунок и жирный фиолетовый текст в синей окантовке */
 .figma-bottom-dock {
   margin-top: 8px;
-  background: rgba(18, 35, 39, 0.95);
+  background: rgba(15, 25, 38, 0.96);
   border: 2px solid #1e40af;
-  box-shadow: 0 0 14px rgba(30, 64, 175, 0.35);
+  box-shadow: 0 0 14px rgba(30, 64, 175, 0.4);
   border-radius: 22px;
-  padding: 6px 8px;
+  padding: 7px 8px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
@@ -864,36 +864,53 @@ body,
 .dock-item {
   background: transparent;
   border: none;
-  color: #94a3b8;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 4px 0;
+  gap: 4px;
+  padding: 4px 2px;
   cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 600;
-  transition: color 0.2s;
+  transition: transform 0.18s;
 }
 
 .dock-icon-pill {
-  width: 44px;
-  height: 30px;
+  width: 48px;
+  height: 32px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #581c87;
+  filter: drop-shadow(0 0 1.5px #93c5fd) drop-shadow(0 0 4px rgba(147, 51, 234, 0.45));
   transition: all 0.2s;
 }
 
-.dock-item.active {
-  color: #34d399;
+/* Светло-белый прозрачный бегунок активной вкладки */
+.dock-item.active .dock-icon-pill {
+  background: rgba(255, 255, 255, 0.38);
+  border: 1.5px solid rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  color: #4c1d95;
+  box-shadow: 0 2px 12px rgba(255, 255, 255, 0.28);
 }
 
-.dock-item.active .dock-icon-pill {
-  background: rgba(52, 211, 153, 0.18);
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  color: #34d399;
+/* Слова на сайд-баре: жирный шрифт, фиолетовый цвет в синей окантовке (#1e40af) */
+.dock-item span {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #a855f7;
+  -webkit-text-stroke: 0.5px #1e40af;
+  text-shadow:
+    -1px -1px 0 #1e40af,
+     1px -1px 0 #1e40af,
+    -1px  1px 0 #1e40af,
+     1px  1px 0 #1e40af,
+     0px  1px 4px rgba(0, 0, 0, 0.65);
+}
+
+.dock-item.active span {
+  color: #c084fc;
 }
 
 /* ЭКРАНЫ FEED, NEWS, SETTINGS */
@@ -1683,3 +1700,253 @@ body,
   color: #cbd5e1;
   line-height: 1.38;
 }
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   СВЕТЛАЯ ТЕМА (.theme-light) — Высокая контрастность и идеальная читаемость
+   ========================================================================== */
+.figma-app-root.theme-light {
+  background: radial-gradient(circle at 50% 0%, #dbeafe 0%, #e2e8f0 80%);
+  color: #0f172a;
+}
+
+.figma-phone-frame.theme-light {
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border-color: rgba(30, 64, 175, 0.28);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+.theme-light .figma-map-card {
+  border: 1.5px solid #94a3b8;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.theme-light .figma-latest-card,
+.theme-light .feed-quake-card,
+.theme-light .news-impact-card,
+.theme-light .settings-card {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.theme-light .latest-heading {
+  color: #475569;
+}
+
+.theme-light .view-details-link {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.theme-light .latest-place,
+.theme-light .feed-card-center h4,
+.theme-light .news-place-title,
+.theme-light .screen-section-header h2,
+.theme-light .settings-card-title h3,
+.theme-light .coords-status-box strong {
+  color: #0f172a;
+}
+
+.theme-light .latest-meta,
+.theme-light .feed-card-sub,
+.theme-light .news-time,
+.theme-light .screen-section-header p,
+.theme-light .settings-hint,
+.theme-light .coords-status-box span,
+.theme-light .slider-marks {
+  color: #334155;
+}
+
+.theme-light .news-impact-summary {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.theme-light .feed-distance-highlight {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.theme-light .figma-monitoring-footer {
+  color: #334155;
+  font-weight: 600;
+}
+
+.theme-light .preview-toggle-link {
+  color: #1e40af;
+  font-weight: 700;
+}
+
+.theme-light .filter-chip {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.theme-light .filter-chip.active {
+  background: #1e40af;
+  border-color: #1e3a8a;
+  color: #ffffff;
+}
+
+.theme-light .sort-tab-btn {
+  color: #475569;
+  font-weight: 600;
+}
+
+.theme-light .sort-tab-btn.active {
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 800;
+}
+
+.theme-light .icon-Action-btn {
+  background: #ffffff;
+  border-color: #94a3b8;
+  color: #1e40af;
+}
+
+.theme-light .latest-mag-box.severe {
+  background: #ffe4e6;
+  border-color: #f43f5e;
+  color: #be123c;
+}
+
+.theme-light .latest-mag-box.severe .m-number {
+  color: #9f1239;
+}
+
+.theme-light .latest-mag-box.moderate {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.theme-light .latest-mag-box.moderate .m-number {
+  color: #92400e;
+}
+
+.theme-light .latest-mag-box.minor {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.theme-light .latest-mag-box.minor .m-number {
+  color: #065f46;
+}
+
+.theme-light .severity-badge-pill.severe,
+.theme-light .impact-tag.severe {
+  background: #ffe4e6;
+  border-color: #f43f5e;
+  color: #be123c;
+}
+
+.theme-light .severity-badge-pill.moderate,
+.theme-light .impact-tag.moderate {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+
+.theme-light .severity-badge-pill.minor,
+.theme-light .impact-tag.minor {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.theme-light .news-metric-chip {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.theme-light .news-tsunami-box {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0369a1;
+}
+
+.theme-light .news-map-btn {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.theme-light .news-ext-link {
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.theme-light .lang-select-btn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.theme-light .lang-select-btn .lang-sub {
+  color: #475569;
+}
+
+.theme-light .lang-select-btn.active {
+  background: #dbeafe;
+  border: 2px solid #1e40af;
+  color: #0f172a;
+}
+
+.theme-light .toggle-row {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.theme-light .sub-heading {
+  color: #334155;
+}
+
+.theme-light .coords-status-box {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+}
+
+.theme-light .btn-small-mint {
+  background: #1e40af;
+  border-color: #1e3a8a;
+  color: #ffffff;
+}
+
+.theme-light .radius-number-input-wrap {
+  background: #f1f5f9;
+  border-color: #64748b;
+  color: #0f172a;
+}
+
+.theme-light .radius-num-input {
+  color: #0f172a;
+}
+
+.theme-light .btn-test-push {
+  background: #1e40af;
+  border-color: #1e3a8a;
+  color: #ffffff;
+}
+
+.theme-light .figma-bottom-dock {
+  background: rgba(219, 234, 254, 0.95);
+  border: 2px solid #1e40af;
+}
+
+.theme-light .dock-item.active .dock-icon-pill {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid #1e40af;
+  box-shadow: 0 2px 10px rgba(30, 64, 175, 0.2);
+}
+

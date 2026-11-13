@@ -13,44 +13,14 @@ import {
 } from 'lucide-react';
 import { SosAudioBeacon, shareEmergencyMessage, triggerHaptic } from '../lib/platform';
 
-const SAFETY_TABS = [
-  {
-    id: 'indoors',
-    title: 'В помещении',
-    steps: [
-      'УПАДИТЕ на колени, УКРОЙТЕСЬ под прочным столом или у несущей стены, ДЕРЖИТЕСЬ до окончания толчков.',
-      'Отойдите от окон, зеркал, люстр и высоких шкафов.',
-      'НЕ пользуйтесь лифтом! Спускайтесь только по лестнице после прекращения толчков.',
-      'По возможности перекройте газ, воду и отключите электричество на щитке.'
-    ]
-  },
-  {
-    id: 'outdoors',
-    title: 'На улице',
-    steps: [
-      'Выйдите на открытое пространство подальше от зданий, линий электропередач и деревьев.',
-      'Не подходите к фасадам домов — возможен обвал стёкол, карнизов и балконов.',
-      'Если вы у моря и толчок сильный — немедленно поднимайтесь на возвышенность (угроза цунами).'
-    ]
-  },
-  {
-    id: 'trapped',
-    title: 'Под завалом',
-    steps: [
-      'Включите звуковой маяк SOS выше или стучите металлическим предметом по трубам/стенам.',
-      'Не зажигайте спички и зажигалки (опасность утечки газа).',
-      'Прикройте рот и нос тканью от пыли, экономьте силы и кислород.'
-    ]
-  }
-];
-
 export default function SosModal({
   isOpen,
   onClose,
   userLocation,
   nearestQuake,
   onReportFelt,
-  feltCount
+  feltCount,
+  t
 }) {
   const beaconRef = useRef(null);
   const [isSirenActive, setIsSirenActive] = useState(false);
@@ -73,7 +43,13 @@ export default function SosModal({
     }
   }, [isOpen, isSirenActive]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !t) return null;
+
+  const safetyTabs = [
+    { id: 'indoors', title: t.safetyIndoors, steps: t.safetyStepsIndoors || [] },
+    { id: 'outdoors', title: t.safetyOutdoors, steps: t.safetyStepsOutdoors || [] },
+    { id: 'trapped', title: t.safetyTrapped, steps: t.safetyStepsTrapped || [] }
+  ];
 
   const toggleSiren = () => {
     triggerHaptic('danger');
@@ -95,11 +71,11 @@ export default function SosModal({
     });
 
     if (result.method === 'clipboard') {
-      setShareFeedback('Экстренное сообщение с координатами скопировано в буфер обмена!');
+      setShareFeedback(t.copiedClipboard);
     } else if (result.method === 'telegram') {
-      setShareFeedback('Открыто окно отправки в Telegram.');
+      setShareFeedback(t.openedTelegram);
     } else {
-      setShareFeedback('Статус готов к отправке.');
+      setShareFeedback(t.readyToShare);
     }
     setTimeout(() => setShareFeedback(''), 4000);
   };
@@ -110,7 +86,7 @@ export default function SosModal({
         <div className="sos-modal-header">
           <div className="sos-header-title">
             <AlertTriangle size={22} className="text-danger" />
-            <span>ЭКСТРЕННЫЙ ЦЕНТР TREMOR SOS</span>
+            <span>{t.sosModalTitle}</span>
           </div>
           <button type="button" className="icon-close-btn" onClick={onClose}>
             <X size={20} />
@@ -126,8 +102,8 @@ export default function SosModal({
           >
             {isSirenActive ? <VolumeX size={28} /> : <Volume2 size={28} />}
             <div className="siren-btn-text">
-              <strong>{isSirenActive ? 'ВЫКЛЮЧИТЬ СИРЕНУ SOS' : 'ВКЛЮЧИТЬ СИРЕНУ SOS'}</strong>
-              <span>Звуковой маяк Морзе (... --- ...) для спасателей</span>
+              <strong>{isSirenActive ? t.sirenStop : t.sirenStart}</strong>
+              <span>{t.sirenSub}</span>
             </div>
           </button>
 
@@ -140,13 +116,13 @@ export default function SosModal({
             }}
           >
             <Flashlight size={22} />
-            <span>{isStrobeActive ? 'Стоп вспышка' : 'Экран-маяк'}</span>
+            <span>{isStrobeActive ? t.strobeStop : t.strobeStart}</span>
           </button>
         </div>
 
         {/* Быстрая отправка координат близким / в Telegram */}
         <div className="sos-share-section">
-          <h4>Отправить координаты и статус близким</h4>
+          <h4>{t.shareStatusHeading}</h4>
           <div className="sos-share-buttons">
             <button
               type="button"
@@ -154,7 +130,7 @@ export default function SosModal({
               onClick={() => handleShareStatus('sos')}
             >
               <Share2 size={18} />
-              <span>🆘 Мне нужна помощь (SOS)</span>
+              <span>{t.btnNeedHelp}</span>
             </button>
 
             <button
@@ -163,7 +139,7 @@ export default function SosModal({
               onClick={() => handleShareStatus('safe')}
             >
               <ShieldCheck size={18} />
-              <span>✅ Я в безопасности</span>
+              <span>{t.btnImSafe}</span>
             </button>
           </div>
 
@@ -177,7 +153,7 @@ export default function SosModal({
           >
             <Radio size={18} />
             <span>
-              ⚠️ Я почувствовал толчок! {feltCount > 0 ? `(Отметок: ${feltCount})` : ''}
+              {t.btnIFeltIt} {feltCount > 0 ? `(${t.reportsCount}: ${feltCount})` : ''}
             </span>
           </button>
 
@@ -185,8 +161,8 @@ export default function SosModal({
             <div className="gps-readout">
               <Navigation size={14} />
               <span>
-                Ваши GPS координаты: <b>{userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}</b>
-                {userLocation.accuracy ? ` (±${userLocation.accuracy} м)` : ''}
+                {t.yourGpsCoords}: <b>{userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}</b>
+                {userLocation.accuracy ? ` (±${userLocation.accuracy} m)` : ''}
               </span>
             </div>
           )}
@@ -202,7 +178,7 @@ export default function SosModal({
         {/* Памятка выживания */}
         <div className="sos-safety-guide">
           <div className="safety-tabs">
-            {SAFETY_TABS.map((tab) => (
+            {safetyTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -214,7 +190,7 @@ export default function SosModal({
             ))}
           </div>
           <ul className="safety-steps-list">
-            {SAFETY_TABS.find((t) => t.id === activeSafetyTab)?.steps.map((step, i) => (
+            {safetyTabs.find((item) => item.id === activeSafetyTab)?.steps.map((step, i) => (
               <li key={i}>{step}</li>
             ))}
           </ul>

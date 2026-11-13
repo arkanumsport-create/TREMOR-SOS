@@ -50,6 +50,12 @@ export default function App() {
   });
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
+  // Тема оформления: 'dark' | 'light'
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('tremor_theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
   // Активный экран нижней навигации: 'map' | 'feed' | 'news' | 'settings'
   const [activeTab, setActiveTab] = useState('map');
 
@@ -109,11 +115,17 @@ export default function App() {
     initTelegramMiniApp();
   }, []);
 
-  // Сохранение языка и радиуса
+  // Сохранение языка, темы и радиуса
   const handleSetLang = (newLang) => {
     triggerHaptic('selection');
     setLang(newLang);
     localStorage.setItem('tremor_lang', newLang);
+  };
+
+  const handleSetTheme = (newTheme) => {
+    triggerHaptic('selection');
+    setTheme(newTheme);
+    localStorage.setItem('tremor_theme', newTheme);
   };
 
   const handleSetRadius = (km) => {
@@ -284,8 +296,8 @@ export default function App() {
   };
 
   return (
-    <div className="figma-app-root">
-      <div className="figma-phone-frame">
+    <div className={`figma-app-root theme-${theme}`}>
+      <div className={`figma-phone-frame theme-${theme}`}>
         {/* ШАПКА ПРИЛОЖЕНИЯ (Обновлённая по пожеланиям: синий фон, бордовый TREMOR, живая жёлтая кардиограмма) */}
         <header className="figma-header">
           <div className="figma-header-top">
@@ -635,6 +647,31 @@ export default function App() {
               <h2>{t.settingsTitle}</h2>
             </div>
 
+            {/* 0. ТЕМА ОФОРМЛЕНИЯ (Тёмная / Светлая) */}
+            <section className="settings-card">
+              <div className="settings-card-title">
+                <Sliders size={17} className="text-mint" />
+                <h3>{t.themeSection}</h3>
+              </div>
+
+              <div className="theme-grid">
+                <button
+                  type="button"
+                  className={`lang-select-btn ${theme === 'dark' ? 'active' : ''}`}
+                  onClick={() => handleSetTheme('dark')}
+                >
+                  <strong>{t.themeDark}</strong>
+                </button>
+                <button
+                  type="button"
+                  className={`lang-select-btn ${theme === 'light' ? 'active' : ''}`}
+                  onClick={() => handleSetTheme('light')}
+                >
+                  <strong>{t.themeLight}</strong>
+                </button>
+              </div>
+            </section>
+
             {/* 1. ВЫБОР ЯЗЫКА (🇬🇧 EN, 🇪🇸 ES, 🇷🇺 RU) */}
             <section className="settings-card">
               <div className="settings-card-title">
@@ -904,6 +941,7 @@ export default function App() {
           nearestQuake={latestNearbyEvent}
           feltCount={feltCount}
           onReportFelt={() => setFeltCount((c) => c + 1)}
+          t={t}
         />
       </div>
     </div>
