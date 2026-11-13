@@ -1,0 +1,15 @@
+{
+  "appId": "com.tremorsos.app",
+  "appName": "TREMOR SOS",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#ef4444"
+    }
+  }
+}
