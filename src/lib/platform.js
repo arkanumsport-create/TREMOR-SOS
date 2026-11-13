@@ -28,8 +28,14 @@ export function initTelegramMiniApp() {
   try {
     tg.ready();
     tg.expand();
-    if (tg.setHeaderColor) tg.setHeaderColor('#0c1719');
-    if (tg.setBackgroundColor) tg.setBackgroundColor('#0c1719');
+    // Подстраиваем цвет системной шапки Telegram под цветовую схему клиента (light/dark),
+    // чтобы на iOS иконки закрытия (X) и меню (...) внутри кружков всегда были контрастными и видимыми
+    if (tg.setHeaderColor) {
+      tg.setHeaderColor(tg.colorScheme === 'light' ? 'bg_color' : 'secondary_bg_color');
+    }
+    if (tg.setBackgroundColor) {
+      tg.setBackgroundColor('#0b1416');
+    }
   } catch (err) {
     console.warn('Telegram WebApp init warning:', err);
   }

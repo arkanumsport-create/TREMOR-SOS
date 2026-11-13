@@ -110,6 +110,7 @@ export default function App() {
   const [pushBanner, setPushBanner] = useState(null);
 
   const notifiedIdsRef = useRef(new Set());
+  const initialFeedSeededRef = useRef(false);
 
   // Инициализация Telegram Mini App и синхронизация атрибута языка (чтобы автопереводчик браузера не ломал интерфейс)
   useEffect(() => {
@@ -247,19 +248,35 @@ export default function App() {
     );
   }, [activeQuakes, alertRadiusKm]);
 
-  // Автоматическая отправка Push-уведомления, если эпицентр укладывается в заданный радиус безопасности (п. 4 ТЗ)
+  // Автоматическая отправка Push-уведомления ТОЛЬКО для новых землетрясений в реальном времени (не при открытии приложения!)
   useEffect(() => {
+    if (!activeQuakes || activeQuakes.length === 0) return;
+
+    // При первом открытии приложения запоминаем все текущие события без отправки пуша,
+    // чтобы при входе в Telegram Mini App не выскакивало уведомление
+    if (!initialFeedSeededRef.current) {
+      activeQuakes.forEach((q) => notifiedIdsRef.current.add(q.id));
+      initialFeedSeededRef.current = true;
+      return;
+    }
+
     if (!notificationsEnabled || !geoEnabled || !userLocation) return;
 
+    const fifteenMinMs = 15 * 60 * 1000;
+    const now = Date.now();
+
     activeQuakes.forEach((q) => {
-      if (q.distanceKm == null || q.distanceKm > alertRadiusKm) return;
       if (notifiedIdsRef.current.has(q.id)) return;
+      notifiedIdsRef.current.add(q.id);
+
+      // Отправляем автоматический пуш только если толчок произошёл только что (< 15 мин назад) и внутри радиуса
+      if (now - q.time > fifteenMinMs) return;
+      if (q.distanceKm == null || q.distanceKm > alertRadiusKm) return;
 
       const isTsunamiMatch = tsunamiAlerts && q.tsunami;
       const isQuakeMatch = earthquakeAlerts && q.mag >= 4.0;
 
       if (isTsunamiMatch || isQuakeMatch) {
-        notifiedIdsRef.current.add(q.id);
         const title = t.pushTitle;
         const body = t.pushBody(q.mag.toFixed(1), q.place, q.distanceKm);
         setPushBanner({ title, body, quake: q });
