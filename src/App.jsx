@@ -85,10 +85,10 @@ export default function App() {
   });
   const [locatingGps, setLocatingGps] = useState(false);
 
-  // Настройки уведомлений и радиуса безопасности (п. 4 ТЗ)
+  // Настройки уведомлений и радиуса безопасности (по умолчанию 1000 км — уведомления приходят при толчке ближе 1000 км)
   const [alertRadiusKm, setAlertRadiusKm] = useState(() => {
-    const saved = Number(localStorage.getItem('tremor_radius_km'));
-    return saved > 0 ? saved : 50; // На макете Figma "Radius 50 km"
+    const saved = Number(localStorage.getItem('tremor_radius_v2_km'));
+    return saved > 0 ? saved : 1000;
   });
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('tremor_notif_enabled') !== 'false';
@@ -137,9 +137,9 @@ export default function App() {
   };
 
   const handleSetRadius = (km) => {
-    const clamped = Math.max(10, Math.min(5000, Number(km) || 50));
+    const clamped = Math.max(10, Math.min(5000, Number(km) || 1000));
     setAlertRadiusKm(clamped);
-    localStorage.setItem('tremor_radius_km', String(clamped));
+    localStorage.setItem('tremor_radius_v2_km', String(clamped));
   };
 
   // Запрос реальной GPS-геопозиции пользователя с сохранением в localStorage
@@ -297,19 +297,20 @@ export default function App() {
 
     if (!notificationsEnabled || !geoEnabled || !userLocation) return;
 
-    const fifteenMinMs = 15 * 60 * 1000;
+    const thirtyMinMs = 30 * 60 * 1000;
     const now = Date.now();
+    // Гарантируем отправку уведомления для любого землетрясения ближе 1000 км (или больше, если пользователь выставил радиус > 1000 км)
+    const notifyThresholdKm = Math.max(alertRadiusKm, 1000);
 
     activeQuakes.forEach((q) => {
       if (notifiedIdsRef.current.has(q.id)) return;
       notifiedIdsRef.current.add(q.id);
 
-      // Отправляем автоматический пуш только если толчок произошёл только что (< 15 мин назад) и внутри радиуса
-      if (now - q.time > fifteenMinMs) return;
-      if (q.distanceKm == null || q.distanceKm > alertRadiusKm) return;
+      if (now - q.time > thirtyMinMs) return;
+      if (q.distanceKm == null || q.distanceKm > notifyThresholdKm) return;
 
       const isTsunamiMatch = tsunamiAlerts && q.tsunami;
-      const isQuakeMatch = earthquakeAlerts && q.mag >= 4.0;
+      const isQuakeMatch = earthquakeAlerts && q.mag >= 2.5;
 
       if (isTsunamiMatch || isQuakeMatch) {
         const title = t.pushTitle;
