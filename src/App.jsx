@@ -85,10 +85,10 @@ export default function App() {
   });
   const [locatingGps, setLocatingGps] = useState(false);
 
-  // Настройки уведомлений и радиуса безопасности (по умолчанию 1000 км — уведомления приходят при толчке ближе 1000 км)
+  // Радиус на карте по умолчанию 50 км (как в Figma), а уведомления приходят для всех толчков ближе 1000 км
   const [alertRadiusKm, setAlertRadiusKm] = useState(() => {
-    const saved = Number(localStorage.getItem('tremor_radius_v2_km'));
-    return saved > 0 ? saved : 1000;
+    const saved = Number(localStorage.getItem('tremor_map_radius_km'));
+    return saved > 0 ? saved : 50;
   });
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('tremor_notif_enabled') !== 'false';
@@ -137,9 +137,9 @@ export default function App() {
   };
 
   const handleSetRadius = (km) => {
-    const clamped = Math.max(10, Math.min(5000, Number(km) || 1000));
+    const clamped = Math.max(10, Math.min(5000, Number(km) || 50));
     setAlertRadiusKm(clamped);
-    localStorage.setItem('tremor_radius_v2_km', String(clamped));
+    localStorage.setItem('tremor_map_radius_km', String(clamped));
   };
 
   // Запрос реальной GPS-геопозиции пользователя с сохранением в localStorage
