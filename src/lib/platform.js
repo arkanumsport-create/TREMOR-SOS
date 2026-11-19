@@ -3,10 +3,44 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
 
+const TG_BOT_TOKEN = '9272896323:AAEaDtn3nE32bE-iYOhxHpOhAc-dllyiQPQ';
+
+// Единый разблокированный AudioContext для iOS (Safari / PWA / Telegram WebView)
+let sharedAudioCtx = null;
+
+function getOrUnlockAudioContext() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+      sharedAudioCtx = new AudioCtx();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+    return sharedAudioCtx;
+  } catch {
+    return null;
+  }
+}
+
+// Авто-разблокировка звука на iPhone при первом касании экрана
+if (typeof window !== 'undefined') {
+  const unlockHandler = () => {
+    const ctx = getOrUnlockAudioContext();
+    if (ctx && ctx.state === 'running') {
+      window.removeEventListener('touchstart', unlockHandler);
+      window.removeEventListener('click', unlockHandler);
+    }
+  };
+  window.addEventListener('touchstart', unlockHandler, { passive: true });
+  window.addEventListener('click', unlockHandler, { passive: true });
+}
+
 export function detectPlatform() {
   if (typeof window !== 'undefined') {
     const tg = window.Telegram?.WebApp;
-    if (tg && tg.initData && tg.initData.length > 0) {
+    if (tg && (tg.initData?.length > 0 || tg.platform !== 'unknown')) {
       return 'telegram';
     }
     if (Capacitor.isNativePlatform()) {
@@ -28,8 +62,6 @@ export function initTelegramMiniApp() {
   try {
     tg.ready();
     tg.expand();
-    // Подстраиваем цвет системной шапки Telegram под цветовую схему клиента (light/dark),
-    // чтобы на iOS иконки закрытия (X) и меню (...) внутри кружков всегда были контрастными и видимыми
     if (tg.setHeaderColor) {
       tg.setHeaderColor(tg.colorScheme === 'light' ? 'bg_color' : 'secondary_bg_color');
     }
@@ -42,40 +74,67 @@ export function initTelegramMiniApp() {
   return tg;
 }
 
+/**
+ * Мощная кроссплатформенная вибрация:
+ * - В Telegram Mini App (на iPhone и Android) использует нативный Taptic Engine через HapticFeedback (без проверки initData!)
+ * - На Android (Web / PWA) использует длинную серию виброимпульсов navigator.vibrate
+ * - В нативном приложении (App Store / Google Play) использует Capacitor Haptics
+ */
 export async function triggerHaptic(type = 'impact') {
   try {
     const tg = window.Telegram?.WebApp;
-    if (tg?.HapticFeedback && tg.initData) {
+    if (tg?.HapticFeedback) {
       if (type === 'danger' || type === 'error') {
+        // Серия из 6 мощных виброударов Taptic Engine на iPhone / Android (длительность ~1.3 сек)
         tg.HapticFeedback.notificationOccurred('error');
+        [180, 360, 560, 760, 980, 1200].forEach((delayMs, idx) => {
+          setTimeout(() => {
+            try {
+              if (idx % 2 === 0) {
+                tg.HapticFeedback.impactOccurred('heavy');
+              } else {
+                tg.HapticFeedback.notificationOccurred('error');
+              }
+            } catch {
+              // ignore
+            }
+          }, delayMs);
+        });
       } else if (type === 'warning') {
         tg.HapticFeedback.notificationOccurred('warning');
+        setTimeout(() => {
+          try {
+            tg.HapticFeedback.impactOccurred('rigid');
+          } catch {
+            // ignore
+          }
+        }, 160);
       } else if (type === 'selection') {
         tg.HapticFeedback.selectionChanged();
       } else {
         tg.HapticFeedback.impactOccurred('medium');
       }
-      return;
     }
 
     if (Capacitor.isNativePlatform()) {
       if (type === 'danger' || type === 'error') {
         await Haptics.notification({ type: NotificationType.Error });
+        setTimeout(() => Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {}), 220);
+        setTimeout(() => Haptics.notification({ type: NotificationType.Error }).catch(() => {}), 460);
       } else if (type === 'warning') {
         await Haptics.notification({ type: NotificationType.Warning });
       } else {
         await Haptics.impact({ style: ImpactStyle.Medium });
       }
-      return;
     }
 
     if (navigator.vibrate) {
-      if (type === 'danger') {
-        navigator.vibrate([200, 100, 200, 100, 300]);
+      if (type === 'danger' || type === 'error') {
+        navigator.vibrate([400, 120, 400, 120, 500, 120, 600]);
       } else if (type === 'warning') {
-        navigator.vibrate([120, 60, 120]);
+        navigator.vibrate([180, 80, 180]);
       } else {
-        navigator.vibrate(25);
+        navigator.vibrate(35);
       }
     }
   } catch {
@@ -114,11 +173,9 @@ export async function getUserLocation() {
   });
 }
 
-/**
- * Запрос разрешения и отправка Push / системного уведомления с точным расстоянием по прямой
- */
 export async function requestNotificationPermission() {
   try {
+    getOrUnlockAudioContext();
     if (Capacitor.isNativePlatform()) {
       const perm = await LocalNotifications.requestPermissions();
       return perm.display === 'granted';
@@ -134,36 +191,84 @@ export async function requestNotificationPermission() {
   return false;
 }
 
+/**
+ * Громкий двухтональный сигнал сейсмической тревоги (1.4 секунды, 6 импульсов)
+ * Работает в Telegram Mini App, PWA и любом браузере на iPhone / Android / ПК без внешних MP3.
+ */
 export function playAlertBeep() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
+    const ctx = getOrUnlockAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime + 0.02;
 
-    [880, 1175].forEach((freq, i) => {
+    // 6 громких тревожных импульсов (чередование 940 Гц и 1360 Гц)
+    const pulses = [940, 1360, 940, 1360, 940, 1360];
+    pulses.forEach((freq, i) => {
+      const start = now + i * 0.21;
+      const duration = 0.16;
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now + i * 0.14);
-      gain.gain.setValueAtTime(0.01, now + i * 0.14);
-      gain.gain.exponentialRampToValueAtTime(0.28, now + i * 0.14 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.12);
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, start);
+
+      gain.gain.setValueAtTime(0.01, start);
+      gain.gain.exponentialRampToValueAtTime(0.55, start + 0.02);
+      gain.gain.setValueAtTime(0.55, start + duration - 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start(now + i * 0.14);
-      osc.stop(now + i * 0.14 + 0.13);
-    });
 
-    setTimeout(() => ctx.close().catch(() => {}), 600);
+      osc.start(start);
+      osc.stop(start + duration);
+    });
   } catch {
     // ignore audio restriction
   }
 }
 
+/**
+ * Отправка реального системного пуш-сообщения со звуком и вибрацией через бота @TremorSOS_bot,
+ * если пользователь открыл приложение внутри Telegram
+ */
+async function sendTelegramBotPush(title, body) {
+  try {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (!tgUser?.id) return false;
+
+    const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: tgUser.id,
+        text: `${title}\n\n${body}`,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🗺 Открыть радар TREMOR SOS',
+                web_app: { url: 'https://arkanumsport-create.github.io/TREMOR-SOS/' }
+              }
+            ]
+          ]
+        }
+      })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendSeismicPushNotification({ title, body }) {
+  // 1. Сразу запускаем серию виброударов + громкую звуковую сирену тревоги внутри приложения
   triggerHaptic('danger');
   playAlertBeep();
+
+  // 2. Если запущено в Telegram — параллельно шлём пуш от @TremorSOS_bot (даёт системный звук и вибрацию iOS/Android)
+  sendTelegramBotPush(title, body);
 
   try {
     if (Capacitor.isNativePlatform()) {
@@ -189,11 +294,10 @@ export async function sendSeismicPushNotification({ title, body }) {
           body,
           icon: './pwa-192x192.png',
           badge: './pwa-192x192.png',
-          vibrate: [200, 100, 200],
+          vibrate: [400, 120, 400, 120, 600],
           tag: 'tremor-sos-push-' + Date.now()
         };
 
-        // В PWA и мобильных браузерах требуется вызов через ServiceWorkerRegistration
         if ('serviceWorker' in navigator) {
           const reg = await navigator.serviceWorker.getRegistration();
           if (reg && typeof reg.showNotification === 'function') {
@@ -232,7 +336,7 @@ export async function shareEmergencyMessage({ status, userLocation, nearestQuake
         : `✅ [TREMOR SOS] I am safe.\nMy coordinates: ${coordsText}${quakeLine}`;
 
   const tg = window.Telegram?.WebApp;
-  if (tg && tg.initData && tg.openTelegramLink) {
+  if (tg && tg.openTelegramLink) {
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(mapsUrl || 'https://earthquake.usgs.gov')}&text=${encodeURIComponent(text)}`;
     tg.openTelegramLink(shareUrl);
     return { method: 'telegram', text };
@@ -272,6 +376,9 @@ export class SosAudioBeacon {
     if (!AudioCtx) return;
 
     this.ctx = new AudioCtx();
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
     this.isPlaying = true;
     this._scheduleLoop();
   }
@@ -296,8 +403,8 @@ export class SosAudioBeacon {
       osc.frequency.setValueAtTime(idx >= 3 && idx <= 5 ? 1180 : 960, offset);
 
       gain.gain.setValueAtTime(0.01, offset);
-      gain.gain.exponentialRampToValueAtTime(0.35, offset + 0.02);
-      gain.gain.setValueAtTime(0.35, offset + duration - 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.55, offset + 0.02);
+      gain.gain.setValueAtTime(0.55, offset + duration - 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, offset + duration);
 
       osc.connect(gain);
