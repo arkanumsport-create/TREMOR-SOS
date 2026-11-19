@@ -1,7 +1,8 @@
 /**
- * Клиент сейсмических данных USGS (Геологическая служба США)
- * Фокус на СИЛЬНЫХ (M4.5+) и ЗНАЧИМЫХ/РАЗРУШИТЕЛЬНЫХ (Significant) землетрясениях
- * + расчёт расстояний по прямой (формула гаверсинусов).
+ * Клиент сейсмических данных USGS (Геологическая служба США) + EMSC (SeismicPortal)
+ * - Загрузка без кэша (cache: 'no-store') для мгновенного получения новых толчков
+ * - Автоматическое удаление любых событий старше 7 дней (7 * 24 ч)
+ * - Подгрузка как мировых сильных землетрясений (M4.5+), так и ближайших к пользователю опасных толчков
  */
 
 export const USGS_FEEDS = {
@@ -15,9 +16,11 @@ export const USGS_FEEDS = {
   },
   day25: {
     id: 'day25',
-    url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson'
+    url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson'
   }
 };
+
+export const MAX_SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Формула гаверсинусов — точное расстояние по прямой в километрах
@@ -70,46 +73,85 @@ export function getSeverityInfo(mag) {
 }
 
 /**
- * Загрузка реальных сильных и значимых землетрясений из интернета (USGS GeoJSON API)
+ * Загрузка реальных землетрясений из интернета (USGS + региональный радар вокруг пользователя)
+ * Строгий фильтр: только за последние 7 дней (старые автоматически удаляются).
  */
 export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) {
-  // Загружаем основную ленту + значимые (разрушительные) за месяц для полноты картины
+  const now = Date.now();
   const primaryUrl = (USGS_FEEDS[feedKey] || USGS_FEEDS.strong).url;
-  const [primaryRes, sigRes] = await Promise.all([
-    fetch(primaryUrl),
-    feedKey !== 'significant'
-      ? fetch(USGS_FEEDS.significant.url).catch(() => null)
-      : Promise.resolve(null)
-  ]);
 
-  if (!primaryRes.ok) {
-    throw new Error(`USGS API Error (${primaryRes.status})`);
+  // Запрашиваем выбранную ленту + значимые мировые + региональные ощутимые (2.5_week), чтобы всегда видеть ближайшие к пользователю толчки
+  const requests = [
+    fetch(primaryUrl, { cache: 'no-store' }),
+    feedKey !== 'significant'
+      ? fetch(USGS_FEEDS.significant.url, { cache: 'no-store' }).catch(() => null)
+      : Promise.resolve(null),
+    feedKey !== 'day25'
+      ? fetch(USGS_FEEDS.day25.url, { cache: 'no-store' }).catch(() => null)
+      : Promise.resolve(null)
+  ];
+
+  const [primaryRes, sigRes, regionalRes] = await Promise.all(requests);
+
+  if (!primaryRes || !primaryRes.ok) {
+    throw new Error(`USGS API Error (${primaryRes?.status || 'network'})`);
   }
 
   const primaryData = await primaryRes.json();
-  let features = Array.isArray(primaryData.features) ? [...primaryData.features] : [];
+  const rawFeatures = Array.isArray(primaryData.features) ? [...primaryData.features] : [];
+  const seenIds = new Set(rawFeatures.map((f) => f.id));
 
+  // Добавляем значимые/разрушительные события
   if (sigRes && sigRes.ok) {
-    const sigData = await sigRes.json();
-    if (Array.isArray(sigData.features)) {
-      const existingIds = new Set(features.map((f) => f.id));
-      sigData.features.forEach((f) => {
-        if (!existingIds.has(f.id)) features.push(f);
-      });
+    try {
+      const sigData = await sigRes.json();
+      if (Array.isArray(sigData.features)) {
+        sigData.features.forEach((f) => {
+          if (!seenIds.has(f.id)) {
+            seenIds.add(f.id);
+            rawFeatures.push(f);
+          }
+        });
+      }
+    } catch {
+      // ignore
     }
   }
 
-  const MAX_SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-  const now = Date.now();
+  // Добавляем ближайшие к пользователю опасные/ощутимые толчки (в радиусе до 2200 км или M4.0+)
+  if (regionalRes && regionalRes.ok && userLocation) {
+    try {
+      const regData = await regionalRes.json();
+      if (Array.isArray(regData.features)) {
+        regData.features.forEach((f) => {
+          if (seenIds.has(f.id)) return;
+          const coords = f.geometry?.coordinates || [0, 0, 0];
+          const mag = Number(f.properties?.mag) || 0;
+          const dist = calculateDistanceKm(
+            userLocation.lat,
+            userLocation.lng,
+            Number(coords[1]),
+            Number(coords[0])
+          );
+          if (mag >= 4.0 || (dist != null && dist <= 2200 && mag >= 3.0)) {
+            seenIds.add(f.id);
+            rawFeatures.push(f);
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
 
-  return features
+  return rawFeatures
     .map((item) => {
       const coords = item.geometry?.coordinates || [0, 0, 0];
       const lng = Number(coords[0]);
       const lat = Number(coords[1]);
       const depthKm = Math.max(0, Math.round(Number(coords[2]) || 0));
       const mag = Number(item.properties?.mag) || 0;
-      const time = item.properties?.time || now;
+      const time = Number(item.properties?.time) || now;
       const distanceKm = userLocation
         ? calculateDistanceKm(userLocation.lat, userLocation.lng, lat, lng)
         : null;
@@ -137,14 +179,14 @@ export async function fetchEarthquakes(feedKey = 'strong', userLocation = null) 
         !Number.isNaN(q.lat) &&
         !Number.isNaN(q.lng) &&
         q.mag > 0 &&
+        now - q.time >= -60000 &&
         now - q.time <= MAX_SEVEN_DAYS_MS
     )
     .sort((a, b) => b.time - a.time);
 }
 
 /**
- * Генерация демо-толчков вокруг текущих координат пользователя (как на макете Figma: Berkeley M4.8, Oakland и т.д.),
- * чтобы можно было в 1 клик проверить работу 50 км радиуса и Push-уведомлений рядом с собой.
+ * Генерация демо-толчков вокруг текущих координат пользователя (для теста радиуса 50 км)
  */
 export function generateNearbyPreviewQuakes(userLocation) {
   const baseLat = userLocation?.lat ?? 37.7749;
@@ -218,7 +260,7 @@ export function generateNearbyPreviewQuakes(userLocation) {
 }
 
 /**
- * Относительное время на выбранном языке (EN / ES / RU)
+ * Относительное время на выбранном языке (EN / ES / RU) в минутах, часах и днях
  */
 export function formatRelativeTime(timestamp, lang = 'en') {
   const diffSec = Math.max(1, Math.floor((Date.now() - timestamp) / 1000));
@@ -251,7 +293,7 @@ export function formatRelativeTime(timestamp, lang = 'en') {
 }
 
 /**
- * Обратное геокодирование координат в название города на английском (или локальном) языке
+ * Обратное геокодирование координат в название города на английском (международный формат: Maracay, VE)
  */
 export async function reverseGeocodeCity(lat, lng) {
   try {

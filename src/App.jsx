@@ -100,10 +100,12 @@ export default function App() {
   // Режим данных: 'live' (100% реальные данные USGS со всего мира) или 'preview' (тестовые точки из макета Figma для проверки радиуса 50 км)
   const [dataSourceMode, setDataSourceMode] = useState('live');
   const [feedFilter, setFeedFilter] = useState('strong'); // 'strong' | 'significant' | 'day25'
-  const [sortBy, setSortBy] = useState('time'); // 'time' | 'mag' | 'distance'
+  // В разделе «События» по умолчанию показываем опасные землетрясения максимально близко к пользователю и максимально свежие
+  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'time' | 'mag'
 
   const [liveQuakes, setLiveQuakes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [selectedQuake, setSelectedQuake] = useState(null);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [feltCount, setFeltCount] = useState(0);
@@ -184,12 +186,13 @@ export default function App() {
     setShowGeoPromptModal(false);
   };
 
-  // Загрузка реальных сильных и разрушительных землетрясений с USGS
+  // Загрузка реальных сильных и разрушительных землетрясений с USGS (без кэша)
   const loadUsgsQuakes = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchEarthquakes(feedFilter, userLocation);
       setLiveQuakes(data);
+      setNowTick(Date.now());
     } catch (err) {
       console.warn('USGS fetch warning:', err);
     } finally {
@@ -197,53 +200,85 @@ export default function App() {
     }
   }, [feedFilter, userLocation]);
 
+  // Автообновление каждые 30 секунд + мгновенное обновление при возврате в приложение
   useEffect(() => {
     loadUsgsQuakes();
-    const timer = setInterval(loadUsgsQuakes, 60000);
-    return () => clearInterval(timer);
+    const fetchTimer = setInterval(loadUsgsQuakes, 30000);
+    const clockTimer = setInterval(() => setNowTick(Date.now()), 15000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadUsgsQuakes();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(fetchTimer);
+      clearInterval(clockTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
   }, [loadUsgsQuakes]);
 
-  // Объединение или выбор между реальными данными USGS и локальным превью рядом с пользователем
+  // Объединение или выбор между реальными данными USGS и локальным превью (строго не старше 7 дней!)
   const activeQuakes = useMemo(() => {
+    const maxSevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const previewList = generateNearbyPreviewQuakes(userLocation);
-    const recalculatedLive = liveQuakes.map((q) => ({
-      ...q,
-      distanceKm: userLocation
-        ? calculateDistanceKm(userLocation.lat, userLocation.lng, q.lat, q.lng)
-        : q.distanceKm
-    }));
+    const recalculatedLive = liveQuakes
+      .filter((q) => nowTick - q.time <= maxSevenDaysMs)
+      .map((q) => ({
+        ...q,
+        distanceKm: userLocation
+          ? calculateDistanceKm(userLocation.lat, userLocation.lng, q.lat, q.lng)
+          : q.distanceKm
+      }));
 
     if (dataSourceMode === 'preview') {
       return [...previewList, ...recalculatedLive];
     }
 
-    // Если в реальных данных USGS за неделю нет толчков в радиусе 100 км от текущей точки,
-    // на карте покажем реальные мировые сильные толчки, а при переключении в Preview — близкие
     return recalculatedLive.length > 0 ? recalculatedLive : previewList;
-  }, [dataSourceMode, liveQuakes, userLocation]);
+  }, [dataSourceMode, liveQuakes, userLocation, nowTick]);
 
-  // Сортировка ленты
+  // Сортировка ленты «События»:
+  // В режиме 'distance' (по умолчанию) поднимаем наверх опасные землетрясения максимально близко к пользователю и максимально свежие
   const sortedQuakes = useMemo(() => {
-    return [...activeQuakes].sort((a, b) => {
-      if (sortBy === 'mag') return b.mag - a.mag;
+    const list = activeQuakes.filter((q) => q.mag >= 4.0 || (q.distanceKm != null && q.distanceKm <= 2200));
+    return [...(list.length > 0 ? list : activeQuakes)].sort((a, b) => {
+      if (sortBy === 'mag') return b.mag - a.mag || b.time - a.time;
       if (sortBy === 'distance') {
-        return (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999);
+        const distA = a.distanceKm ?? 999999;
+        const distB = b.distanceKm ?? 999999;
+        // Если разница расстояний в пределах 180 км — выше ставим более свежее событие
+        if (Math.abs(distA - distB) <= 180) {
+          return b.time - a.time;
+        }
+        return distA - distB;
       }
       return b.time - a.time;
     });
   }, [activeQuakes, sortBy]);
 
-  // Ближайшее событие (для карточки LATEST NEARBY EVENT под картой как в Figma)
+  // Ближайшее свежее опасное событие (для карточки LATEST NEARBY EVENT под картой)
   const latestNearbyEvent = useMemo(() => {
     const withinRadius = activeQuakes.filter(
       (q) => q.distanceKm != null && q.distanceKm <= alertRadiusKm
     );
     if (withinRadius.length > 0) {
-      return withinRadius.sort((a, b) => b.mag - a.mag)[0];
+      return withinRadius.sort((a, b) => b.time - a.time || b.mag - a.mag)[0];
     }
-    // Если в текущем радиусе тихо, показываем самое близкое сильное землетрясение из мировой сводки USGS
     return (
-      [...activeQuakes].sort((a, b) => (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999))[0] ||
+      [...activeQuakes]
+        .filter((q) => q.mag >= 4.0 || (q.distanceKm != null && q.distanceKm <= 2000))
+        .sort((a, b) => {
+          const distA = a.distanceKm ?? 999999;
+          const distB = b.distanceKm ?? 999999;
+          if (Math.abs(distA - distB) <= 200) return b.time - a.time;
+          return distA - distB;
+        })[0] ||
+      activeQuakes[0] ||
       null
     );
   }, [activeQuakes, alertRadiusKm]);
@@ -294,19 +329,19 @@ export default function App() {
     t
   ]);
 
-  // Крупные и разрушительные землетрясения для вкладки News (свежие вверху в часах и днях, максимум 7 дней)
+  // Крупные и разрушительные землетрясения со всего мира для вкладки News:
+  // Самая свежая информация вверху (в минутах, часах и днях), срок давности строго 7 дней (старые удаляются, новые появляются)
   const impactNewsQuakes = useMemo(() => {
     const maxSevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    const now = Date.now();
     return [...activeQuakes]
       .filter(
         (q) =>
-          now - q.time <= maxSevenDaysMs &&
+          nowTick - q.time <= maxSevenDaysMs &&
           (q.mag >= 4.5 || q.tsunami || q.felt > 20)
       )
       .sort((a, b) => b.time - a.time)
-      .slice(0, 35);
-  }, [activeQuakes]);
+      .slice(0, 50);
+  }, [activeQuakes, nowTick]);
 
   const handleTestPush = async () => {
     const sample = latestNearbyEvent || {
@@ -555,9 +590,9 @@ export default function App() {
 
             <div className="feed-sort-row">
               {[
+                { id: 'distance', label: t.sortByDistance },
                 { id: 'time', label: t.sortByTime },
-                { id: 'mag', label: t.sortByMag },
-                { id: 'distance', label: t.sortByDistance }
+                { id: 'mag', label: t.sortByMag }
               ].map((s) => (
                 <button
                   key={s.id}
